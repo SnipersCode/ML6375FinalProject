@@ -11,6 +11,7 @@ Deep Q Learning
 If running on windows, you will need the following in WSL Ubuntu:
 * cmake
 * python-opengl
+* python3-tk
 * add ```export DISPLAY=:0``` and ```export LIBGL_ALWAYS_INDIRECT=1``` to ~/.bashrc
 
 You will need the following on the windows side if using WSL 1

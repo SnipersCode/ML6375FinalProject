@@ -7,6 +7,8 @@ verify_ssl = true
 
 [packages]
 gym = {extras = ["atari"], version = "*"}
+matplotlib = "*"
+numpy = "*"
 
 [requires]
 python_version = "3.8"
