@@ -9,6 +9,8 @@ verify_ssl = true
 gym = {extras = ["atari"], version = "*"}
 matplotlib = "*"
 numpy = "*"
+tf-nightly = "*"
+tf-agents-nightly = "*"
 
 [requires]
 python_version = "3.8"

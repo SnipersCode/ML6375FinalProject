@@ -27,5 +27,6 @@ You will need the following on the windows side if using WSL 1
     ```
 1. Install dependencies
     ```shell script
-    pipenv install
+    pipenv install --skip-lock
     ```
+    You must use the `--skip-lock` flag as the normal hash calculations take too long for tensorflow
