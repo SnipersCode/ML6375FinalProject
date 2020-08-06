@@ -1,0 +1,5 @@
+class HyperParameters:
+    PROCESS_HISTORY_LEN = 4
+    LEARNING_RATE = 0.00001
+
+    MAX_INIT_WAIT_FRAMES = 10
