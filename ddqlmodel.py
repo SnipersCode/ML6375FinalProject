@@ -1,18 +1,17 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tf_agents.replay_buffers import tf_uniform_replay_buffer
 
-from parameters import HyperParameters
+from parameters import HyperParams, Constants
 
 
 class DDQLModel:
     def __init__(self, actions=4):
         self.actions = actions
 
-    def compile(self, show_summary=True):
+    def build(self, name: str, show_summary=True):
         input_layer = layers.Input(
-            shape=(84, 84, self.actions),
+            shape=(*Constants.FRAME_SHAPE, self.actions),
             name='input_layer')
         scaling_layer = layers.Lambda(lambda layer: layer / 255,
                                       name="scale")(input_layer)
@@ -64,11 +63,11 @@ class DDQLModel:
             [advantage_output_layer, reduce_mean_layer(advantage_output_layer)])
 
         # Q values given action and state
-        q_values = layers.Add(name="q_add")([value_output_layer, subtract_layer])
+        q_values = layers.Add(name="q_output")([value_output_layer, subtract_layer])
 
-        # Build model using Huber loss
-        model = tf.keras.models.Model(input_layer, q_values)
-        model.compile(optimizer=tf.optimizers.Adam(learning_rate=HyperParameters.LEARNING_RATE),
+        # Build model using Huber loss and Adam optimizer
+        model = tf.keras.models.Model(input_layer, q_values, name=name)
+        model.compile(optimizer=keras.optimizers.Adam(learning_rate=HyperParams.LEARNING_RATE, clipnorm=1.0),
                       loss=tf.keras.losses.Huber())
 
         if show_summary:
