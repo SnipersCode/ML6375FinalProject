@@ -12,6 +12,9 @@ class DDQLAgent:
         self.target_network = base_model.build("target_network")
         self.actions = actions
 
+        # Ensure target network has same weights
+        self.update_target_network()
+
     @staticmethod
     def _epsilon(frame_num):
         if frame_num < HyperParams.E_EXPLORE_START_FRAME:
@@ -39,8 +42,8 @@ class DDQLAgent:
                 return np.random.randint(0, self.actions)
 
         # Otherwise predict
-        q_values = self.main_network.predict(network_input)
-        return q_values[0].argmax()
+        q_values = self.main_network.predict(network_input)[0]
+        return q_values.argmax()
 
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.get_weights())
@@ -63,7 +66,8 @@ class DDQLAgent:
 
     def learn(self, batch_next_states, batch_rewards, batch_game_ends, batch_actions, batch_states):
         # Main network estimates best action for each next state
-        action_max_q = self.main_network.predict(batch_next_states).argmax(axis=1)
+        q_values = self.main_network.predict(batch_next_states)
+        action_max_q = q_values.argmax(axis=1)
 
         # Target network estimates the q-values for each next state based on the best action from the main network
         next_q_values = self.target_network.predict(batch_next_states)

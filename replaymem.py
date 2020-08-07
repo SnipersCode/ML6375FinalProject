@@ -12,7 +12,7 @@ class ReplayMem:
         # Allocate memory
         self.actions = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=np.uint8)
         self.frames = np.empty((HyperParams.REPLAY_MAX_SIZE, *Constants.FRAME_SHAPE), dtype=np.uint8)
-        self.rewards = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=np.float32)
+        self.rewards = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=np.uint32)
         self.game_ends = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=np.bool)
 
     def __len__(self):

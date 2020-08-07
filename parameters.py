@@ -20,4 +20,7 @@ class Constants:
     FRAME_SHAPE = (84, 84)
     MAX_FPS = 30
     EVAL_FRAME_FREQUENCY = 200000
+    EVAL_STEPS = 10000
     PRINT_GAME_FREQ = 10
+    ACTION_FIRE = 1
+    RENDER = True

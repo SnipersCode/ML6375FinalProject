@@ -67,7 +67,7 @@ class DDQLModel:
 
         # Build model using Huber loss and Adam optimizer
         model = tf.keras.models.Model(input_layer, q_values, name=name)
-        model.compile(optimizer=keras.optimizers.Adam(learning_rate=HyperParams.LEARNING_RATE, clipnorm=1.0),
+        model.compile(optimizer=keras.optimizers.Adam(learning_rate=HyperParams.LEARNING_RATE),
                       loss=tf.keras.losses.Huber())
 
         if show_summary:

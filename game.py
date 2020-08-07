@@ -38,12 +38,12 @@ class Game:
         # Reset environment
         self.env.reset()
 
-        original_frame, reward, game_end, env_info = self._next_frame(self.initial_action)
+        original_frame, reward, game_end, env_info = self._next_frame(self.initial_action, evaluation=evaluation)
         if evaluation:
             # Start at a random point when evaluating
             # This prevents machine from learning a fixed sequence of actions
-            for _ in range(np.random.randint(0, HyperParams.MAX_INIT_WAIT_FRAMES - 1)):
-                original_frame, reward, game_end, env_info = self._next_frame(self.initial_action)
+            for _ in range(np.random.randint(0, HyperParams.MAX_INIT_WAIT_FRAMES + 1)):
+                original_frame, reward, game_end, env_info = self._next_frame(self.initial_action, evaluation)
 
         # Set initial number of lives
         self.lives = env_info["ale.lives"]
@@ -64,15 +64,17 @@ class Game:
         # Resize image to size required for model (84x84)
         return cv2.resize(gray_img, Constants.FRAME_SHAPE, interpolation=cv2.INTER_NEAREST)
 
-    def _next_frame(self, action: Union[int, None]) -> Tuple[np.ndarray, float, bool, dict]:
+    def _next_frame(self, action: Union[int, None], evaluation=False) -> Tuple[np.ndarray, float, bool, dict]:
         # Perform random action if action is None
         if not action:
             actual_action = self.random_action()
         else:
             actual_action = action
 
+        # Track non-evaluation frames
+        if not evaluation:
+            self.metadata.frame_num += 1
         # Tell game to move forward one frame
-        self.metadata.frame_num += 1
         return self.env.step(actual_action)
 
     def random_action(self) -> object:
@@ -85,9 +87,9 @@ class Game:
         # Model assumes an array of states, hence shape of (1, width, height, frame_idx).
         self.network_input = self.network_input.reshape((-1, *self.network_input.shape))
 
-    def next_state(self, action: Union[int, None] = None, render=False):
+    def next_state(self, action: Union[int, None] = None, render=False, evaluation=False):
         # Run next frame
-        original_frame, reward, game_end, env_info = self._next_frame(action)
+        original_frame, reward, game_end, env_info = self._next_frame(action, evaluation=evaluation)
 
         # Add to frame memory
         processed_frame = self._preprocess(original_frame)
