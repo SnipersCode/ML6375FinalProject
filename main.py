@@ -37,7 +37,7 @@ def train(metadata: Metadata, agent: DDQLAgent, game: Game, buffer: ReplayMem):
     return reward, game_end
 
 
-def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int, tensorboard):
+def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int, tensorboard=None):
     eval_frame_num = 0
     eval_episode_rewards = []
     while eval_frame_num < Constants.EVAL_STEPS:
@@ -64,7 +64,7 @@ def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int, t
 
     # Summarize all eval episodes in current epoch
     metadata.eval_rewards.append(np.mean(eval_episode_rewards))
-    if Constants.WRITE_TENSORBOARD:
+    if Constants.WRITE_TENSORBOARD and tensorboard is not None:
         tf.summary.scalar("Evaluation Score", metadata.eval_rewards[-1], metadata.frame_num)
         tensorboard.flush()
     print("Eval #{}> Episodes:{}, Final Score:{}".format(num_epoch,
