@@ -3,6 +3,7 @@ class Metadata:
         self.frame_num: int = 0
         self.rewards = []
         self.loss_list = []
+        self.error_list = []
         self.eval_rewards = []
 
         self.replay_buf_tail: int = 0

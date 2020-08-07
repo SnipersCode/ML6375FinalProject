@@ -48,7 +48,7 @@ class ReplayMem:
     def add_exp(self, action, frame, reward, game_end):
         self.actions[self.metadata.replay_buf_tail] = action
         self.frames[self.metadata.replay_buf_tail] = frame
-        self.rewards[self.metadata.replay_buf_tail] = np.sign(reward)  # Clip reward for faster processing
+        self.rewards[self.metadata.replay_buf_tail] = reward  # Clip reward for faster processing
         self.game_ends[self.metadata.replay_buf_tail] = game_end
 
         if self.metadata.replay_buf_tail < HyperParams.REPLAY_MAX_SIZE - 1:

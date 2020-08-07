@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import tensorflow as tf
 
 from game import Game
 from replaymem import ReplayMem
@@ -27,15 +28,16 @@ def train(metadata: Metadata, agent: DDQLAgent, game: Game, buffer: ReplayMem):
     if metadata.frame_num > HyperParams.E_EXPLORE_START_FRAME:
         if metadata.frame_num % HyperParams.UPDATE_FRAME_FREQ == 0:
             batch_info = buffer.get_batch()  # Sample replay memory
-            loss = agent.learn(*batch_info)  # Determine loss and calculate gradients
+            loss, error = agent.learn(*batch_info)  # Determine loss and calculate gradients
             metadata.loss_list.append(loss)
+            metadata.error_list.append(error)
         if metadata.frame_num % HyperParams.TARGET_NET_UPDATE_FRAME_FREQ == 0:
             agent.update_target_network()  # Update target network
 
     return reward, game_end
 
 
-def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int):
+def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int, tensorboard):
     eval_frame_num = 0
     eval_episode_rewards = []
     while eval_frame_num < Constants.EVAL_STEPS:
@@ -43,7 +45,7 @@ def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int):
         eval_episode_steps = 0
         game_end = False
         game.reset(evaluation=True)
-        next_action = 1
+        next_action = Constants.ACTION_FIRE
         while not game_end and (eval_episode_steps < game.env.spec.max_episode_steps):
             processed_frame, reward, game_end, lost_life, original_frame = game.next_state(next_action,
                                                                                            Constants.RENDER)
@@ -62,12 +64,15 @@ def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int):
 
     # Summarize all eval episodes in current epoch
     metadata.eval_rewards.append(np.mean(eval_episode_rewards))
+    if Constants.WRITE_TENSORBOARD:
+        tf.summary.scalar("Evaluation Score", metadata.eval_rewards[-1], metadata.frame_num)
+        tensorboard.flush()
     print("Eval #{}> Episodes:{}, Final Score:{}".format(num_epoch,
                                                          len(eval_episode_rewards),
                                                          metadata.eval_rewards[-1]))
 
 
-def execute(game: Game, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent):
+def execute(game: Game, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent, tensorboard):
     print("Running game...")
     num_epoch = 1
     # Run until max frames
@@ -86,7 +91,13 @@ def execute(game: Game, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent)
 
             num_episodes = len(metadata.rewards)
             if num_episodes % Constants.PRINT_GAME_FREQ == 0:
-                print("@Frame={} Rewards for games {}-{}: {}".format(
+                if Constants.WRITE_TENSORBOARD:
+                    tf.summary.scalar("Reward", np.mean(metadata.rewards[-10:]), metadata.frame_num)
+                    if metadata.frame_num > HyperParams.E_EXPLORE_START_FRAME:
+                        tf.summary.scalar("Loss", np.mean(metadata.loss_list[-100:]), metadata.frame_num)
+                        tf.summary.scalar("Error", np.mean(metadata.error_list[-100:]), metadata.frame_num)
+                    tensorboard.flush()
+                print("@Frame={} Avg Reward for Episodes {}-{}: {}".format(
                     metadata.frame_num,
                     num_episodes - Constants.PRINT_GAME_FREQ + 1,
                     num_episodes,
@@ -94,7 +105,7 @@ def execute(game: Game, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent)
                 ))
         print("Running eval #{}...".format(num_epoch))
         # Periodically evaluate network
-        evaluate(game, metadata, agent, num_epoch)
+        evaluate(game, metadata, agent, num_epoch, tensorboard)
         num_epoch += 1
 
 
@@ -114,37 +125,43 @@ def save(file_path: Path, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgen
 def _save_handler(sig, frame):
     print("\n>> Interrupt Detected")
     save(g_file_path, g_metadata, g_buffer, g_agent)
+    g_tensorboard.close()
     print("exiting...")
     sys.exit(0)
 
 
 if __name__ == "__main__":
     g_file_path = Path(Constants.MODEL_PATH)
+    # setup tensorboard
+    g_tensorboard = tf.summary.create_file_writer(Constants.TENSORBOARD_PATH)
 
     # Create Metadata
     g_metadata = Metadata()
     # Create Replay Buffer
     g_buffer = ReplayMem(g_metadata)
 
-    with Game(g_metadata) as g_game:
-        # Create Agent
-        g_agent = DDQLAgent(g_game.env.action_space.n)
-        signal.signal(signal.SIGINT, _save_handler)
+    with g_tensorboard.as_default():
+        with Game(g_metadata) as g_game:
+            # Create Agent
+            g_agent = DDQLAgent(g_game.env.action_space.n)
+            signal.signal(signal.SIGINT, _save_handler)
 
-        try:
-            # Try Load
-            g_metadata_file = (g_file_path / "metadata.p")
-            if Constants.DO_LOAD and (all([x.validate_load() for x in [g_buffer, g_agent]])
-                                      and g_metadata_file.is_file()):
-                print("Loading state...")
-                with g_metadata_file.open("rb") as g_metadata_file:
-                    g_metadata = pickle.load(g_metadata_file)  # Metadata
-                g_game.load_metadata(g_metadata)
-                g_buffer.load(g_metadata)
-                g_agent.load()
+            try:
+                # Try Load
+                g_metadata_file = (g_file_path / "metadata.p")
+                if Constants.DO_LOAD and (all([x.validate_load() for x in [g_buffer, g_agent]])
+                                          and g_metadata_file.is_file()):
+                    print("Loading state...")
+                    with g_metadata_file.open("rb") as g_metadata_file:
+                        g_metadata = pickle.load(g_metadata_file)  # Metadata
+                    g_game.load_metadata(g_metadata)
+                    g_buffer.load(g_metadata)
+                    g_agent.load()
 
-            execute(g_game, g_metadata, g_buffer, g_agent)
+                execute(g_game, g_metadata, g_buffer, g_agent, g_tensorboard)
 
-            save(g_file_path, g_metadata, g_buffer, g_agent)
-        except SystemExit as e:
-            raise e
+                save(g_file_path, g_metadata, g_buffer, g_agent)
+            except SystemExit as e:
+                raise e
+
+    g_tensorboard.close()
