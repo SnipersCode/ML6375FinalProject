@@ -30,6 +30,9 @@ class Game:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.env.close()
 
+    def load_metadata(self, metadata: Metadata):
+        self.metadata = metadata
+
     def reset(self, evaluation=False):
         # Reinitialize state
         self.frame_history: List[np.ndarray] = []

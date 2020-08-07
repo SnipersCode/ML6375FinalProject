@@ -9,6 +9,7 @@ verify_ssl = true
 gym = {extras = ["atari"], version = "*"}
 numpy = "*"
 tensorflow = "*"
+opencv-python = "*"
 
 [requires]
 python_version = "3.8"

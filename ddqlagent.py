@@ -30,7 +30,7 @@ class DDQLAgent:
             return False
 
         self.main_network = tf.keras.models.load_model(str(self.file_path / "main_network.h5"))
-        self.target_network = tf.keras.models.load_model(str(self.file_path / "main_network.h5"))
+        self.target_network = tf.keras.models.load_model(str(self.file_path / "target_network.h5"))
 
         return True
 

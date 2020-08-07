@@ -139,6 +139,7 @@ if __name__ == "__main__":
                 print("Loading state...")
                 with g_metadata_file.open("rb") as g_metadata_file:
                     g_metadata = pickle.load(g_metadata_file)  # Metadata
+                g_game.load_metadata(g_metadata)
                 g_buffer.load(g_metadata)
                 g_agent.load()
 
