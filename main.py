@@ -40,10 +40,11 @@ def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int):
     eval_episode_rewards = []
     while eval_frame_num < Constants.EVAL_STEPS:
         eval_episode_reward = 0
+        eval_episode_steps = 0
         game_end = False
         game.reset(evaluation=True)
         next_action = 1
-        while not game_end and (metadata.frame_num < game.env.spec.max_episode_steps):
+        while not game_end and (eval_episode_steps < game.env.spec.max_episode_steps):
             processed_frame, reward, game_end, lost_life, original_frame = game.next_state(next_action,
                                                                                            Constants.RENDER)
 
@@ -51,6 +52,7 @@ def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int):
             next_action = agent.predict_action(game.network_input) if not lost_life else Constants.ACTION_FIRE
 
             eval_frame_num += 1
+            eval_episode_steps += 1
             eval_episode_reward += reward
         eval_episode_rewards.append(eval_episode_reward)
         if len(eval_episode_rewards) % 10 == 0:
@@ -76,7 +78,7 @@ def execute(game: Game, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent)
             game_end = False
             episode_reward = 0
             episode_steps = 0
-            while not game_end and (metadata.frame_num < game.env.spec.max_episode_steps):
+            while not game_end and (episode_steps < game.env.spec.max_episode_steps):
                 reward, game_end = train(metadata, agent, game, buffer)
                 episode_reward += reward
                 episode_steps += 1
@@ -137,7 +139,7 @@ if __name__ == "__main__":
                 print("Loading state...")
                 with g_metadata_file.open("rb") as g_metadata_file:
                     g_metadata = pickle.load(g_metadata_file)  # Metadata
-                g_buffer.load()
+                g_buffer.load(g_metadata)
                 g_agent.load()
 
             execute(g_game, g_metadata, g_buffer, g_agent)

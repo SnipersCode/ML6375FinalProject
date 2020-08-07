@@ -28,7 +28,7 @@ class ReplayMem:
         np.save(str(self.file_path / "rewards.npy"), self.rewards)
         np.save(str(self.file_path / "game_ends.npy"), self.game_ends)
 
-    def load(self) -> bool:
+    def load(self, metadata: Metadata) -> bool:
         if not self.validate_load():
             return False
 
@@ -36,6 +36,8 @@ class ReplayMem:
         self.frames = np.load(str(self.file_path / "frames.npy"))
         self.rewards = np.load(str(self.file_path / "rewards.npy"))
         self.game_ends = np.load(str(self.file_path / "game_ends.npy"))
+
+        self.metadata = metadata
 
         return True
 
