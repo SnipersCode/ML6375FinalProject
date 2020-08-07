@@ -7,10 +7,8 @@ verify_ssl = true
 
 [packages]
 gym = {extras = ["atari"], version = "*"}
-matplotlib = "*"
 numpy = "*"
-tf-nightly = "*"
-tf-agents-nightly = "*"
+tensorflow = "*"
 
 [requires]
 python_version = "3.8"

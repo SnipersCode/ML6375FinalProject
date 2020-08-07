@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-from matplotlib import animation
 import numpy as np
 
 from game import Game
@@ -96,20 +94,10 @@ def main():
                         num_episodes,
                         np.mean(metadata.rewards[-10:])
                     ))
+            print("Running eval #{}...".format(num_epoch))
             # Periodically evaluate network
             evaluate(game, metadata, agent, num_epoch)
             num_epoch += 1
-
-        # print("Showing frame history...")
-        # fig = plt.figure()
-        # images = []
-        # for preprocessed_frame in game.frame_history:
-        #     img = plt.imshow(preprocessed_frame, animated=True, cmap='gray', vmin=0, vmax=255)
-        #     images.append([img])
-        # # noinspection PyUnusedLocal
-        # # animation must be saved to variable due to python garbage collection
-        # ani = animation.ArtistAnimation(fig, images, interval=1000/Constants.MAX_FPS, blit=True)
-        # plt.show()
 
 
 if __name__ == "__main__":
