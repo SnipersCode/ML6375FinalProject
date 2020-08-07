@@ -1,12 +1,16 @@
+from pathlib import Path
+
 import numpy as np
 import tensorflow as tf
 
 from ddqlmodel import DDQLModel
-from parameters import HyperParams
+from parameters import HyperParams, Constants
 
 
 class DDQLAgent:
     def __init__(self, actions: int):
+        self.file_path = Path(Constants.MODEL_PATH) / "networks"
+
         base_model = DDQLModel(actions)
         self.main_network = base_model.build("main_network")
         self.target_network = base_model.build("target_network")
@@ -14,6 +18,25 @@ class DDQLAgent:
 
         # Ensure target network has same weights
         self.update_target_network()
+
+    def save(self):
+        self.file_path.mkdir(parents=True, exist_ok=True)
+
+        self.main_network.save(str(self.file_path / "main_network.h5"))
+        self.target_network.save(str(self.file_path / "target_network.h5"))
+
+    def load(self) -> bool:
+        if not self.validate_load():
+            return False
+
+        self.main_network = tf.keras.models.load_model(str(self.file_path / "main_network.h5"))
+        self.target_network = tf.keras.models.load_model(str(self.file_path / "main_network.h5"))
+
+        return True
+
+    def validate_load(self) -> bool:
+        required_files = ["main_network.h5", "target_network.h5"]
+        return all([(self.file_path / x).is_file() for x in required_files])
 
     @staticmethod
     def _epsilon(frame_num):

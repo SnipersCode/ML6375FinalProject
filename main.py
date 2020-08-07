@@ -1,3 +1,8 @@
+import pickle
+import signal
+import sys
+from pathlib import Path
+
 import numpy as np
 
 from game import Game
@@ -60,45 +65,83 @@ def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int):
                                                          metadata.eval_rewards[-1]))
 
 
-def main():
-    # Create Metadata
-    metadata = Metadata()
-    # Create Replay Buffer
-    buffer = ReplayMem(metadata)
+def execute(game: Game, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent):
+    print("Running game...")
+    num_epoch = 1
+    # Run until max frames
+    while metadata.frame_num < HyperParams.MAX_FRAMES:
+        # Train network
+        while metadata.frame_num // Constants.EVAL_FRAME_FREQUENCY < num_epoch:
+            game.reset(evaluation=False)  # Initializes first frame
+            game_end = False
+            episode_reward = 0
+            episode_steps = 0
+            while not game_end and (metadata.frame_num < game.env.spec.max_episode_steps):
+                reward, game_end = train(metadata, agent, game, buffer)
+                episode_reward += reward
+                episode_steps += 1
+            metadata.rewards.append(episode_reward)
 
-    with Game(metadata) as game:
-        # Create Agent
-        agent = DDQLAgent(game.env.action_space.n)
+            num_episodes = len(metadata.rewards)
+            if num_episodes % Constants.PRINT_GAME_FREQ == 0:
+                print("@Frame={} Rewards for games {}-{}: {}".format(
+                    metadata.frame_num,
+                    num_episodes - Constants.PRINT_GAME_FREQ + 1,
+                    num_episodes,
+                    np.mean(metadata.rewards[-10:])
+                ))
+        print("Running eval #{}...".format(num_epoch))
+        # Periodically evaluate network
+        evaluate(game, metadata, agent, num_epoch)
+        num_epoch += 1
 
-        print("Running game...")
-        num_epoch = 1
-        # Run until max frames
-        while metadata.frame_num < HyperParams.MAX_FRAMES:
-            # Train network
-            while metadata.frame_num // Constants.EVAL_FRAME_FREQUENCY < num_epoch:
-                game.reset(evaluation=False)  # Initializes first frame
-                game_end = False
-                episode_reward = 0
-                episode_steps = 0
-                while not game_end and (metadata.frame_num < game.env.spec.max_episode_steps):
-                    reward, game_end = train(metadata, agent, game, buffer)
-                    episode_reward += reward
-                    episode_steps += 1
-                metadata.rewards.append(episode_reward)
 
-                num_episodes = len(metadata.rewards)
-                if num_episodes % Constants.PRINT_GAME_FREQ == 0:
-                    print("@Frame={} Rewards for games {}-{}: {}".format(
-                        metadata.frame_num,
-                        num_episodes - Constants.PRINT_GAME_FREQ + 1,
-                        num_episodes,
-                        np.mean(metadata.rewards[-10:])
-                    ))
-            print("Running eval #{}...".format(num_epoch))
-            # Periodically evaluate network
-            evaluate(game, metadata, agent, num_epoch)
-            num_epoch += 1
+def save(file_path: Path, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent):
+    # Save state before quitting (even interrupt)
+    if Constants.DO_SAVE:
+        print("Saving state...")
+        file_path.mkdir(parents=True, exist_ok=True)
+
+        with (file_path / "metadata.p").open("wb") as metadata_file:
+            pickle.dump(metadata, metadata_file)  # Metadata
+        buffer.save()
+        agent.save()
+
+
+# noinspection PyUnusedLocal
+def _save_handler(sig, frame):
+    print("\n>> Interrupt Detected")
+    save(g_file_path, g_metadata, g_buffer, g_agent)
+    print("exiting...")
+    sys.exit(0)
 
 
 if __name__ == "__main__":
-    main()
+    g_file_path = Path(Constants.MODEL_PATH)
+
+    # Create Metadata
+    g_metadata = Metadata()
+    # Create Replay Buffer
+    g_buffer = ReplayMem(g_metadata)
+
+    with Game(g_metadata) as g_game:
+        # Create Agent
+        g_agent = DDQLAgent(g_game.env.action_space.n)
+        signal.signal(signal.SIGINT, _save_handler)
+
+        try:
+            # Try Load
+            g_metadata_file = (g_file_path / "metadata.p")
+            if Constants.DO_LOAD and (all([x.validate_load() for x in [g_buffer, g_agent]])
+                                      and g_metadata_file.is_file()):
+                print("Loading state...")
+                with g_metadata_file.open("rb") as g_metadata_file:
+                    g_metadata = pickle.load(g_metadata_file)  # Metadata
+                g_buffer.load()
+                g_agent.load()
+
+            execute(g_game, g_metadata, g_buffer, g_agent)
+
+            save(g_file_path, g_metadata, g_buffer, g_agent)
+        except SystemExit as e:
+            raise e

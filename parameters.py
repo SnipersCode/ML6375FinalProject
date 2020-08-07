@@ -24,3 +24,7 @@ class Constants:
     PRINT_GAME_FREQ = 10
     ACTION_FIRE = 1
     RENDER = True
+    MODEL_PATH = "./model"
+
+    DO_LOAD = True
+    DO_SAVE = True

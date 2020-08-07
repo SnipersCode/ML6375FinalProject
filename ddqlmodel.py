@@ -9,7 +9,7 @@ class DDQLModel:
     def __init__(self, actions=4):
         self.actions = actions
 
-    def build(self, name: str, show_summary=True):
+    def build(self, name: str, show_summary=False):
         input_layer = layers.Input(
             shape=(*Constants.FRAME_SHAPE, self.actions),
             name='input_layer')

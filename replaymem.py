@@ -1,13 +1,15 @@
+from pathlib import Path
+
 import numpy as np
 
 from parameters import HyperParams, Constants
-
 from metadata import Metadata
 
 
 class ReplayMem:
     def __init__(self, metadata: Metadata):
         self.metadata = metadata
+        self.file_path = Path(Constants.MODEL_PATH) / "replay"
 
         # Allocate memory
         self.actions = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=np.uint8)
@@ -17,6 +19,29 @@ class ReplayMem:
 
     def __len__(self):
         return HyperParams.REPLAY_MAX_SIZE if self.metadata.replay_buf_filled else self.metadata.replay_buf_tail
+
+    def save(self):
+        self.file_path.mkdir(parents=True, exist_ok=True)
+
+        np.save(str(self.file_path / "actions.npy"), self.actions)
+        np.save(str(self.file_path / "frames.npy"), self.frames)
+        np.save(str(self.file_path / "rewards.npy"), self.rewards)
+        np.save(str(self.file_path / "game_ends.npy"), self.game_ends)
+
+    def load(self) -> bool:
+        if not self.validate_load():
+            return False
+
+        self.actions = np.load(str(self.file_path / "actions.npy"))
+        self.frames = np.load(str(self.file_path / "frames.npy"))
+        self.rewards = np.load(str(self.file_path / "rewards.npy"))
+        self.game_ends = np.load(str(self.file_path / "game_ends.npy"))
+
+        return True
+
+    def validate_load(self) -> bool:
+        required_files = ["actions.npy", "frames.npy", "rewards.npy", "game_ends.npy"]
+        return all([(self.file_path / x).is_file() for x in required_files])
 
     def add_exp(self, action, frame, reward, game_end):
         self.actions[self.metadata.replay_buf_tail] = action
