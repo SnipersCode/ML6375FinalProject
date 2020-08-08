@@ -74,7 +74,7 @@ def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int, t
 
 def execute(game: Game, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent, tensorboard):
     print("Running game...")
-    num_epoch = 1
+    num_epoch = metadata.frame_num // Constants.EVAL_FRAME_FREQUENCY + 1
     # Run until max frames
     while metadata.frame_num < HyperParams.MAX_FRAMES:
         # Train network
