@@ -4,6 +4,7 @@ class Metadata:
         self.rewards = []
         self.loss_list = []
         self.error_list = []
+        self.target_q_list = []
         self.eval_rewards = []
 
         self.replay_buf_tail: int = 0

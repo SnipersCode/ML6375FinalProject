@@ -13,9 +13,10 @@ from parameters import Constants, HyperParams
 from metadata import Metadata
 
 
-def train(metadata: Metadata, agent: DDQLAgent, game: Game, buffer: ReplayMem):
+def train(metadata: Metadata, agent: DDQLAgent, game: Game, buffer: ReplayMem, tensorboard):
     # Predict next action
-    next_action = agent.predict_action(game.network_input, metadata.frame_num)
+    next_action, eps = agent.predict_action(game.network_input, metadata.frame_num)
+    tf.summary.scalar("Epsilon", eps, metadata.frame_num)
 
     # Execute game and observe next state
     processed_frame, reward, game_end, lost_life, original_frame = game.next_state(next_action,
@@ -28,11 +29,18 @@ def train(metadata: Metadata, agent: DDQLAgent, game: Game, buffer: ReplayMem):
     if metadata.frame_num > HyperParams.E_EXPLORE_START_FRAME:
         if metadata.frame_num % HyperParams.UPDATE_FRAME_FREQ == 0:
             batch_info = buffer.get_batch()  # Sample replay memory
-            loss, error = agent.learn(*batch_info)  # Determine loss and calculate gradients
+            loss, error, target_q = agent.learn(*batch_info)  # Determine loss and calculate gradients
             metadata.loss_list.append(loss)
             metadata.error_list.append(error)
+            metadata.target_q_list.append(target_q)
+            if Constants.WRITE_TENSORBOARD:
+                tf.summary.scalar("Loss", loss, metadata.frame_num)
+                tf.summary.scalar("Error", np.mean(error), metadata.frame_num)
+                tf.summary.scalar("Target Q", np.mean(target_q), metadata.frame_num)
         if metadata.frame_num % HyperParams.TARGET_NET_UPDATE_FRAME_FREQ == 0:
             agent.update_target_network()  # Update target network
+
+    tensorboard.flush()
 
     return reward, game_end
 
@@ -40,18 +48,20 @@ def train(metadata: Metadata, agent: DDQLAgent, game: Game, buffer: ReplayMem):
 def evaluate(game: Game, metadata: Metadata, agent: DDQLAgent, num_epoch: int, tensorboard=None):
     eval_frame_num = 0
     eval_episode_rewards = []
-    while eval_frame_num < Constants.EVAL_STEPS:
-        eval_episode_reward = 0
+    while len(eval_episode_rewards) < Constants.EVAL_EPISODES:
         eval_episode_steps = 0
-        game_end = False
-        game.reset(evaluation=True)
+        original_frame, eval_episode_reward, game_end, env_info = game.reset(evaluation=True)
         next_action = Constants.ACTION_FIRE
         while not game_end and (eval_episode_steps < game.env.spec.max_episode_steps):
             processed_frame, reward, game_end, lost_life, original_frame = game.next_state(next_action,
-                                                                                           Constants.RENDER)
+                                                                                           Constants.RENDER,
+                                                                                           evaluation=True)
 
             # Predict next action. Always start new life with a fire command
-            next_action = agent.predict_action(game.network_input) if not lost_life else Constants.ACTION_FIRE
+            if not lost_life:
+                next_action, eps = agent.predict_action(game.network_input)
+            else:
+                next_action = Constants.ACTION_FIRE
 
             eval_frame_num += 1
             eval_episode_steps += 1
@@ -79,24 +89,18 @@ def execute(game: Game, metadata: Metadata, buffer: ReplayMem, agent: DDQLAgent,
     while metadata.frame_num < HyperParams.MAX_FRAMES:
         # Train network
         while metadata.frame_num // Constants.EVAL_FRAME_FREQUENCY < num_epoch:
-            game.reset(evaluation=False)  # Initializes first frame
-            game_end = False
-            episode_reward = 0
+            original_frame, episode_reward, game_end, env_info = game.reset(evaluation=False)  # Initializes first frame
             episode_steps = 0
             while not game_end and (episode_steps < game.env.spec.max_episode_steps):
-                reward, game_end = train(metadata, agent, game, buffer)
+                reward, game_end = train(metadata, agent, game, buffer, tensorboard)
                 episode_reward += reward
                 episode_steps += 1
             metadata.rewards.append(episode_reward)
+            if Constants.WRITE_TENSORBOARD:
+                tf.summary.scalar("Reward", metadata.rewards[-1], metadata.frame_num)
 
             num_episodes = len(metadata.rewards)
             if num_episodes % Constants.PRINT_GAME_FREQ == 0:
-                if Constants.WRITE_TENSORBOARD:
-                    tf.summary.scalar("Reward", np.mean(metadata.rewards[-10:]), metadata.frame_num)
-                    if metadata.frame_num > HyperParams.E_EXPLORE_START_FRAME:
-                        tf.summary.scalar("Loss", np.mean(metadata.loss_list[-100:]), metadata.frame_num)
-                        tf.summary.scalar("Error", np.mean(metadata.error_list[-100:]), metadata.frame_num)
-                    tensorboard.flush()
                 print("@Frame={} Avg Reward for Episodes {}-{}: {}".format(
                     metadata.frame_num,
                     num_episodes - Constants.PRINT_GAME_FREQ + 1,

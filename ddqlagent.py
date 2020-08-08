@@ -56,17 +56,16 @@ class DDQLAgent:
     def predict_action(self, network_input, frame_num=-1):
         # When training, set frame_num.
         # Evaluation will never pick a random value
-        if frame_num != -1:
-            # Determine epsilon
-            e = self._epsilon(frame_num)
 
+        # Determine epsilon
+        eps = self._epsilon(frame_num)
+        if np.random.rand(1) < eps:
             # E-greedy random chance to pick random action
-            if np.random.rand(1) < e:
-                return np.random.randint(0, self.actions)
+            return np.random.randint(0, self.actions), eps
 
         # Otherwise predict
         q_values = self.main_network.predict(network_input)[0]
-        return q_values.argmax()
+        return q_values.argmax(), eps
 
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.get_weights())
@@ -75,7 +74,6 @@ class DDQLAgent:
         # Update main network loss gradients and return error
         with tf.GradientTape() as tape:
             q_values = self.main_network(batch_states)
-
             actions = tf.keras.utils.to_categorical(batch_actions, self.actions, dtype=np.float32)
             q = tf.reduce_sum(tf.multiply(q_values, actions), axis=1)
 
@@ -85,7 +83,7 @@ class DDQLAgent:
         model_gradients = tape.gradient(loss, self.main_network.trainable_variables)
         self.main_network.optimizer.apply_gradients(zip(model_gradients, self.main_network.trainable_variables))
 
-        return float(loss.numpy()), error
+        return float(loss.numpy()), error, target_q
 
     def learn(self, batch_next_states, batch_rewards, batch_game_ends, batch_actions, batch_states):
         # Main network estimates best action for each next state

@@ -7,14 +7,14 @@ from metadata import Metadata
 
 
 class ReplayMem:
-    def __init__(self, metadata: Metadata):
+    def __init__(self, metadata: Metadata, reward_type=np.uint32):
         self.metadata = metadata
         self.file_path = Path(Constants.MODEL_PATH) / "replay"
 
         # Allocate memory
         self.actions = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=np.uint8)
         self.frames = np.empty((HyperParams.REPLAY_MAX_SIZE, *Constants.FRAME_SHAPE), dtype=np.uint8)
-        self.rewards = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=np.uint32)
+        self.rewards = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=reward_type)
         self.game_ends = np.empty(HyperParams.REPLAY_MAX_SIZE, dtype=np.bool)
 
     def __len__(self):

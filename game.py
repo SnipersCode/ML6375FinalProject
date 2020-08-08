@@ -9,9 +9,7 @@ from parameters import HyperParams, Constants
 
 
 class Game:
-    def __init__(self, metadata: Metadata, initial_action: int = 1, game_str: str = 'BreakoutDeterministic-v4'):
-        # Run breakout by default
-        self.game_str = game_str
+    def __init__(self, metadata: Metadata, initial_action: int = 1):
         # Initial action by default is "fire" to start the game in breakout
         self.initial_action = initial_action
 
@@ -23,7 +21,7 @@ class Game:
 
     def __enter__(self):
         # Create Environment
-        self.env = gym.make(self.game_str)
+        self.env = gym.make(Constants.GAME_STR)
 
         return self
 
@@ -41,15 +39,21 @@ class Game:
         # Reset environment
         self.env.reset()
 
+        total_reward = 0
         original_frame, reward, game_end, env_info = self._next_frame(self.initial_action, evaluation=evaluation)
+        total_reward += reward
         if evaluation:
             # Start at a random point when evaluating
             # This prevents machine from learning a fixed sequence of actions
             for _ in range(np.random.randint(0, HyperParams.MAX_INIT_WAIT_FRAMES + 1)):
+                if game_end:
+                    self.env.reset()
                 original_frame, reward, game_end, env_info = self._next_frame(self.initial_action, evaluation)
+                total_reward += reward
 
         # Set initial number of lives
-        self.lives = env_info["ale.lives"]
+        if "ale.lives" in env_info:
+            self.lives = env_info["ale.lives"]
 
         # Duplicate initial frame by PROCESS_HISTORY_LEN
         processed_frame = self._preprocess(original_frame)
@@ -59,11 +63,15 @@ class Game:
         # Update Network Input
         self._set_network_input()
 
+        return original_frame, total_reward, game_end, env_info
+
     @staticmethod
     def _preprocess(img: np.ndarray) -> np.ndarray:
         # Reduce inputs by converting from RGB to Grayscale. Colors in game does not affect score.
         # Crop to a 160x160 for faster processing
-        gray_img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2GRAY)[34:34+160, :160]
+        gray_img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2GRAY)
+        if Constants.GAME_STR.startswith("Breakout"):
+            gray_img = gray_img[34:34+160, :160]
         # Resize image to size required for model (84x84)
         return cv2.resize(gray_img, Constants.FRAME_SHAPE, interpolation=cv2.INTER_NEAREST)
 
@@ -78,7 +86,12 @@ class Game:
         if not evaluation:
             self.metadata.frame_num += 1
         # Tell game to move forward one frame
-        return self.env.step(actual_action)
+        observation, reward, game_end, env_info = self.env.step(actual_action)
+
+        if Constants.GAME_STR.startswith("Breakout"):
+            return observation, reward, game_end, env_info
+        else:
+            return self.env.render('rgb_array'), reward, game_end, env_info
 
     def random_action(self) -> object:
         return self.env.action_space.sample()
@@ -98,14 +111,17 @@ class Game:
         processed_frame = self._preprocess(original_frame)
         self.frame_history.append(processed_frame)
 
-        # Check if lost a life (either fell in pit or game ended)
-        lost_life = (env_info["ale.lives"] < self.lives) or game_end
-
         # Update Network Input
         self._set_network_input()
 
-        # Update lives
-        self.lives = env_info["ale.lives"]
+        if "ale.lives" in env_info:
+            # Check if lost a life (either fell in pit or game ended)
+            lost_life = (env_info["ale.lives"] < self.lives) or game_end
+
+            # Update lives
+            self.lives = env_info["ale.lives"]
+        else:
+            lost_life = game_end
 
         if render:
             self.env.render()
